@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(where python:*)",
+      "Bash(where python3:*)",
+      "Bash(where py:*)",
+      "Bash(\"C:/Code Tools/Python/python.exe\" -c \"import pandas; import openpyxl; import xlrd; print\\(''All imports OK''\\)\")",
+      "Bash(\"C:/Code Tools/Python/python.exe\":*)",
+      "Bash(python -c \":*)"
+    ]
+  }
+}
