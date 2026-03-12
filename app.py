@@ -113,7 +113,8 @@ class LatenessReportApp:
                 generate_lateness_report(input_path, output_path, top_n, self.update_status)
                 self.root.after(0, lambda: self._done(True))
             except Exception as e:
-                self.root.after(0, lambda: self._done(False, str(e)))
+                err = str(e)
+                self.root.after(0, lambda: self._done(False, err))
 
         threading.Thread(target=run, daemon=True).start()
 

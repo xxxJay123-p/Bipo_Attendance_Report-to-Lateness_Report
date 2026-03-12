@@ -9,7 +9,7 @@ pip install pandas openpyxl xlrd pyinstaller
 
 echo.
 echo Building EXE...
-pyinstaller --onefile --windowed --name "LatenessReportGenerator" --icon=NONE app.py --add-data "report_generator.py;."
+pyinstaller --onefile --console --name "LatenessReportGenerator" --icon=NONE app.py --add-data "report_generator.py;."
 
 echo.
 echo ============================================
