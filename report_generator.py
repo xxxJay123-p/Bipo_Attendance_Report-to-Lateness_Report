@@ -110,6 +110,8 @@ def load_attendance(filepath):
             col_map["lateness"] = col
         elif "latenesscount" in cl:
             col_map["late_count"] = col
+        elif cl == "remark" or cl == "remarks":
+            col_map["remark"] = col
 
     # Handle Clock In column more carefully
     if "clock_in" not in col_map:
@@ -135,8 +137,53 @@ def load_attendance(filepath):
     # Convert lateness to numeric
     df[col_map["lateness"]] = pd.to_numeric(df[col_map["lateness"]], errors="coerce").fillna(0)
 
-    # Filter to late records only
-    late_df = df[df[col_map["lateness"]] > 0].copy()
+    # ── Remark-based filtering ──
+    # Known leave / absence codes (case-insensitive matching)
+    LEAVE_CODES = {
+        "HKG_ANL", "HK_ANL", "HK_OFB", "HOL", "HK_COMP", "AWOL", "ODD",
+        "HK_FULLSICK", "HK_BT",
+    }
+
+    if "remark" in col_map:
+        df["_remark_raw"] = df[col_map["remark"]].astype(str).str.strip()
+    else:
+        df["_remark_raw"] = ""
+
+    def should_exclude_by_remark(remark):
+        """Determine if a record should be excluded from lateness based on remark.
+        - Full-day leave code (e.g. HKG_ANL, HOL) → exclude
+        - Code/- (morning leave) → exclude (no morning clock-in required)
+        - -/Code (afternoon leave) → keep (morning lateness still applies)
+        - Code/Code (full-day leave) → exclude
+        """
+        if not remark or remark in ("nan", "", "-"):
+            return False
+        r = remark.upper().strip()
+        # Full-day leave code (no slash)
+        if r in LEAVE_CODES:
+            return True
+        # Half-day pattern with /
+        if "/" in r:
+            parts = r.split("/", 1)
+            morning_part = parts[0].strip()
+            afternoon_part = parts[1].strip()
+            morning_is_leave = morning_part != "-" and morning_part != ""
+            afternoon_is_leave = afternoon_part != "-" and afternoon_part != ""
+            # Code/- → morning leave → exclude (no morning clock-in required)
+            if morning_is_leave and not afternoon_is_leave:
+                return True
+            # -/Code → afternoon leave → keep (morning lateness still applies)
+            if not morning_is_leave and afternoon_is_leave:
+                return False
+            # Code/Code → both halves leave → exclude
+            if morning_is_leave and afternoon_is_leave:
+                return True
+        return False
+
+    df["_exclude"] = df["_remark_raw"].apply(should_exclude_by_remark)
+
+    # Filter to late records only, excluding leave-related records
+    late_df = df[(df[col_map["lateness"]] > 0) & (~df["_exclude"])].copy()
     late_df["late_mins"] = (late_df[col_map["lateness"]] * 60).round().astype(int)
     late_df["category"] = late_df["late_mins"].apply(categorize)
     late_df["month_dt"] = late_df[col_map["date"]].dt.to_period("M")
@@ -154,6 +201,7 @@ def load_attendance(filepath):
         "month_dt": late_df["month_dt"],
         "month_label": late_df["month_label"],
         "day_name": late_df["day_name"],
+        "remark": late_df["_remark_raw"],
     })
     result = result.sort_values(["emp_code", "date"]).reset_index(drop=True)
 
@@ -170,6 +218,9 @@ def load_attendance(filepath):
             return f"{parts[0]}:{parts[1]}"
         return v
     result["clock_in"] = result["clock_in"].apply(clean_time)
+
+    # Clean remark: replace nan with empty string
+    result["remark"] = result["remark"].apply(lambda v: "" if str(v).strip() in ("nan", "NaT", "None") else str(v).strip())
 
     return result
 
@@ -348,8 +399,8 @@ def build_monthly_summary(wb, df, months, month_labels):
 def build_daily_records(wb, df):
     ws = wb.create_sheet("Daily Late Records")
 
-    headers = ["Employee Code", "Employee Name", "Date", "Day", "Clock In", "Late (mins)", "Category"]
-    widths = [14, 28, 14, 8, 10, 12, 16]
+    headers = ["Employee Code", "Employee Name", "Date", "Day", "Clock In", "Late (mins)", "Category", "Remark"]
+    widths = [14, 28, 14, 8, 10, 12, 16, 16]
     for j, (h, w) in enumerate(zip(headers, widths), 1):
         c = ws.cell(1, j, h)
         style_cell(c, WHITE_FONT, DARK_BLUE_FILL, CENTER, THIN_BORDER)
@@ -368,6 +419,13 @@ def build_daily_records(wb, df):
         font = cat_font(row["category"])
         style_cell(mins_cell, font, fill, CENTER, THIN_BORDER)
         style_cell(cat_cell, font, fill, CENTER, THIN_BORDER)
+
+        remark_val = row.get("remark", "")
+        if remark_val and remark_val not in ("nan", ""):
+            remark_cell = ws.cell(i, 8, remark_val)
+        else:
+            remark_cell = ws.cell(i, 8, "")
+        style_cell(remark_cell, NORMAL_FONT, alignment=CENTER, border=THIN_BORDER)
 
         for j in range(1, 6):
             ws.cell(i, j).border = THIN_BORDER
@@ -439,7 +497,7 @@ def build_employee_detail(wb, df, months, month_labels):
     ws.column_dimensions["C"].width = 14
     ws.column_dimensions["D"].width = 10
     ws.column_dimensions["E"].width = 14
-    ws.column_dimensions["F"].width = 12
+    ws.column_dimensions["F"].width = 16
     ws.column_dimensions["G"].width = 16
 
     employees = sorted(df[["emp_code", "emp_name"]].drop_duplicates().values.tolist())
@@ -449,8 +507,8 @@ def build_employee_detail(wb, df, months, month_labels):
         r, _, _ = _write_employee_block(ws, r, emp_code, emp_name, emp_df, months, month_labels)
 
         # Daily detail sub-header
-        detail_headers = ["Date", "Day", "Clock In", "Late (mins)", "Category"]
-        for j, h in enumerate(zip(detail_headers, [DARK_BLUE_FILL]*5), 1):
+        detail_headers = ["Date", "Day", "Clock In", "Late (mins)", "Category", "Remark"]
+        for j, h in enumerate(zip(detail_headers, [DARK_BLUE_FILL]*6), 1):
             c = ws.cell(r, j, h[0])
             style_cell(c, WHITE_FONT, DARK_BLUE_FILL, CENTER, THIN_BORDER)
         r += 1
@@ -465,6 +523,9 @@ def build_employee_detail(wb, df, months, month_labels):
             font = cat_font(row["category"])
             style_cell(mins_c, font, fill, CENTER, THIN_BORDER)
             style_cell(cat_c, font, fill, CENTER, THIN_BORDER)
+            remark_val = row.get("remark", "")
+            remark_c = ws.cell(r, 6, remark_val if remark_val not in ("nan", "") else "")
+            style_cell(remark_c, NORMAL_FONT, alignment=CENTER, border=THIN_BORDER)
             for j in range(1, 4):
                 ws.cell(r, j).border = THIN_BORDER
                 ws.cell(r, j).font = NORMAL_FONT

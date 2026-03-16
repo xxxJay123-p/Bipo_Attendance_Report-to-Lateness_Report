@@ -1,5 +1,4 @@
-('D:\\test\\Bipo_Attendance_Report to '
- 'Lateness_Report\\build\\LatenessReportGenerator\\PYZ-00.pyz',
+('D:\\test\\Bipo_Attendance_Report-to-Lateness_Report\\build\\LatenessReportGenerator\\PYZ-00.pyz',
  [('PIL',
    'C:\\Code Tools\\Python\\Lib\\site-packages\\PIL\\__init__.py',
    'PYMODULE'),
@@ -3430,7 +3429,7 @@
   ('quopri', 'C:\\Code Tools\\Python\\Lib\\quopri.py', 'PYMODULE'),
   ('random', 'C:\\Code Tools\\Python\\Lib\\random.py', 'PYMODULE'),
   ('report_generator',
-   'D:\\test\\Bipo_Attendance_Report to Lateness_Report\\report_generator.py',
+   'D:\\test\\Bipo_Attendance_Report-to-Lateness_Report\\report_generator.py',
    'PYMODULE'),
   ('rlcompleter', 'C:\\Code Tools\\Python\\Lib\\rlcompleter.py', 'PYMODULE'),
   ('runpy', 'C:\\Code Tools\\Python\\Lib\\runpy.py', 'PYMODULE'),

@@ -6,7 +6,8 @@
       "Bash(where py:*)",
       "Bash(\"C:/Code Tools/Python/python.exe\" -c \"import pandas; import openpyxl; import xlrd; print\\(''All imports OK''\\)\")",
       "Bash(\"C:/Code Tools/Python/python.exe\":*)",
-      "Bash(python -c \":*)"
+      "Bash(python -c \":*)",
+      "Bash(python -c \"import report_generator; print\\(''OK''\\)\")"
     ]
   }
 }
